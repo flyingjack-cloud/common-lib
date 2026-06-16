@@ -40,6 +40,10 @@ public enum ErrorCode {
     // 403 授权阶段异常(默认) - AccessDeniedException
     ACCESS_DENIED(403,"error.security.access-denied.default", "Access denied"),
 
+    // 用户相关错误
+    USER_NOT_FOUND(404, "error.user.not-found", "User not found"),
+    WRONG_PASSWORD(401, "error.user.wrong-password", "Wrong password"),
+
     // oauth2 相关错误
     OAUTH_FAIL(403,"error.oauth2.default", "Forbidden"),
     CLIENT_NOT_FOUND(403,"error.oauth2.client.miss", "Client not found"),;
