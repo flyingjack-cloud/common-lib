@@ -39,6 +39,12 @@
             <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
 
+        <!-- K8s 原生服务发现 -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-kubernetes-client-discoveryclient</artifactId>
+        </dependency>
+
         <!-- Spring Boot 2.4+ 需要显式引入 bootstrap 支持 -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
