@@ -18,14 +18,29 @@ public interface CacheService {
     void set(String key, Object value, long expireTime);
 
     /**
+     * 设置缓存，写入后读回验证，失败则抛出异常
+     */
+    void setVerified(String key, Object value, long expireTime);
+
+    /**
      * 设置缓存
      */
     void set(String key, Object value);
 
     /**
+     * 设置缓存，写入后读回验证，失败则抛出异常
+     */
+    void setVerified(String key, Object value);
+
+    /**
      * 获取缓存
      */
     Object get(String key);
+
+    /**
+     * 删除缓存，返回 null 或 false 则抛出异常
+     */
+    void delSafe(String key);
 
     /**
      * 删除缓存
@@ -73,9 +88,19 @@ public interface CacheService {
     Boolean hSet(String key, String hashKey, Object value, long time);
 
     /**
+     * 向Hash结构中放入一个属性，返回 null 则抛出异常
+     */
+    void hSetSafe(String key, String hashKey, Object value, long time);
+
+    /**
      * 向Hash结构中放入一个属性
      */
     void hSet(String key, String hashKey, Object value);
+
+    /**
+     * 向Hash结构中放入一个属性，写入后读回验证，失败则抛出异常
+     */
+    void hSetVerified(String key, String hashKey, Object value);
 
     /**
      * 直接获取整个Hash结构
@@ -118,9 +143,19 @@ public interface CacheService {
     Long sAdd(String key, Object... values);
 
     /**
+     * 向Set结构中添加属性，返回 null 则抛出异常
+     */
+    void sAddSafe(String key, Object... values);
+
+    /**
      * 向Set结构中添加属性
      */
     Long sAdd(String key, long time, Object... values);
+
+    /**
+     * 向Set结构中添加属性，返回 null 则抛出异常
+     */
+    void sAddSafe(String key, long time, Object... values);
 
     /**
      * 是否为Set中的属性
@@ -158,9 +193,19 @@ public interface CacheService {
     Long lPush(String key, Object value);
 
     /**
+     * 向List结构中添加属性，返回 null 则抛出异常
+     */
+    void lPushSafe(String key, Object value);
+
+    /**
      * 向List结构中添加属性
      */
     Long lPush(String key, Object value, long time);
+
+    /**
+     * 向List结构中添加属性，返回 null 则抛出异常
+     */
+    void lPushSafe(String key, Object value, long time);
 
     /**
      * 向List结构中批量添加属性
@@ -168,9 +213,19 @@ public interface CacheService {
     Long lPushAll(String key, Object... values);
 
     /**
+     * 向List结构中批量添加属性，返回 null 则抛出异常
+     */
+    void lPushAllSafe(String key, Object... values);
+
+    /**
      * 向List结构中批量添加属性
      */
     Long lPushAll(String key, long time, Object... values);
+
+    /**
+     * 向List结构中批量添加属性，返回 null 则抛出异常
+     */
+    void lPushAllSafe(String key, long time, Object... values);
 
     /**
      * 从List结构中移除属性
