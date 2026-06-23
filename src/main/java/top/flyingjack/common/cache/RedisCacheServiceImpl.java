@@ -1,5 +1,7 @@
 package top.flyingjack.common.cache;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.util.StringUtils;
 
@@ -16,6 +18,7 @@ import java.util.concurrent.TimeUnit;
  * @date 2025/4/12 15:28
  */
 public class RedisCacheServiceImpl implements CacheService {
+    private static final Logger log = LoggerFactory.getLogger(RedisCacheServiceImpl.class);
     private RedisTemplate<String, Object> redisTemplate;
 
     public RedisCacheServiceImpl(RedisTemplate<String, Object> redisTemplate) {
@@ -23,8 +26,36 @@ public class RedisCacheServiceImpl implements CacheService {
     }
 
     @Override
+    public void setVerified(String key, Object value, long expireTime) {
+        try {
+            redisTemplate.opsForValue().set(key, value, expireTime, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.error("Cache set failed - key={}, error={}", key, e.getMessage(), e);
+            throw new RuntimeException("Cache write failed: " + key, e);
+        }
+        if (redisTemplate.opsForValue().get(key) == null) {
+            log.error("Cache set verification failed - key={} not found after write", key);
+            throw new RuntimeException("Cache write verification failed: " + key);
+        }
+    }
+
+    @Override
     public void set(String key, Object value) {
         redisTemplate.opsForValue().set(key, value);
+    }
+
+    @Override
+    public void setVerified(String key, Object value) {
+        try {
+            redisTemplate.opsForValue().set(key, value);
+        } catch (Exception e) {
+            log.error("Cache set failed - key={}, error={}", key, e.getMessage(), e);
+            throw new RuntimeException("Cache write failed: " + key, e);
+        }
+        if (redisTemplate.opsForValue().get(key) == null) {
+            log.error("Cache set verification failed - key={} not found after write", key);
+            throw new RuntimeException("Cache write verification failed: " + key);
+        }
     }
 
     @Override
@@ -35,6 +66,21 @@ public class RedisCacheServiceImpl implements CacheService {
     @Override
     public Object get(String key) {
         return redisTemplate.opsForValue().get(key);
+    }
+
+    @Override
+    public void delSafe(String key) {
+        Boolean result;
+        try {
+            result = redisTemplate.delete(key);
+        } catch (Exception e) {
+            log.error("Cache del failed - key={}, error={}", key, e.getMessage(), e);
+            throw new RuntimeException("Cache delete failed: " + key, e);
+        }
+        if (result == null || !result) {
+            log.error("Cache del failed - key={} delete returned false/null", key);
+            throw new RuntimeException("Cache delete failed: " + key);
+        }
     }
 
     @Override
@@ -84,8 +130,38 @@ public class RedisCacheServiceImpl implements CacheService {
     }
 
     @Override
+    public void hSetSafe(String key, String hashKey, Object value, long time) {
+        Boolean result;
+        try {
+            redisTemplate.opsForHash().put(key, hashKey, value);
+            result = expire(key, time);
+        } catch (Exception e) {
+            log.error("Cache hSet failed - key={}, hashKey={}, error={}", key, hashKey, e.getMessage(), e);
+            throw new RuntimeException("Cache write failed: " + key, e);
+        }
+        if (result == null || !result) {
+            log.error("Cache hSet expire failed - key={}, hashKey={}", key, hashKey);
+            throw new RuntimeException("Cache write failed: " + key);
+        }
+    }
+
+    @Override
     public void hSet(String key, String hashKey, Object value) {
         redisTemplate.opsForHash().put(key, hashKey, value);
+    }
+
+    @Override
+    public void hSetVerified(String key, String hashKey, Object value) {
+        try {
+            redisTemplate.opsForHash().put(key, hashKey, value);
+        } catch (Exception e) {
+            log.error("Cache hSet failed - key={}, hashKey={}, error={}", key, hashKey, e.getMessage(), e);
+            throw new RuntimeException("Cache write failed: " + key, e);
+        }
+        if (redisTemplate.opsForHash().get(key, hashKey) == null) {
+            log.error("Cache hSet verification failed - key={}, hashKey={} not found after write", key, hashKey);
+            throw new RuntimeException("Cache write verification failed: " + key);
+        }
     }
 
     @Override
@@ -130,10 +206,41 @@ public class RedisCacheServiceImpl implements CacheService {
     }
 
     @Override
+    public void sAddSafe(String key, Object... values) {
+        Long count;
+        try {
+            count = redisTemplate.opsForSet().add(key, values);
+        } catch (Exception e) {
+            log.error("Cache sAdd failed - key={}, error={}", key, e.getMessage(), e);
+            throw new RuntimeException("Cache write failed: " + key, e);
+        }
+        if (count == null) {
+            log.error("Cache sAdd failed - key={} returned null", key);
+            throw new RuntimeException("Cache write failed: " + key);
+        }
+    }
+
+    @Override
     public Long sAdd(String key, long time, Object... values) {
         Long count = redisTemplate.opsForSet().add(key, values);
         expire(key, time);
         return count;
+    }
+
+    @Override
+    public void sAddSafe(String key, long time, Object... values) {
+        Long count;
+        try {
+            count = redisTemplate.opsForSet().add(key, values);
+            expire(key, time);
+        } catch (Exception e) {
+            log.error("Cache sAdd failed - key={}, error={}", key, e.getMessage(), e);
+            throw new RuntimeException("Cache write failed: " + key, e);
+        }
+        if (count == null) {
+            log.error("Cache sAdd failed - key={} returned null", key);
+            throw new RuntimeException("Cache write failed: " + key);
+        }
     }
 
     @Override
@@ -172,10 +279,41 @@ public class RedisCacheServiceImpl implements CacheService {
     }
 
     @Override
+    public void lPushSafe(String key, Object value) {
+        Long count;
+        try {
+            count = redisTemplate.opsForList().rightPush(key, value);
+        } catch (Exception e) {
+            log.error("Cache lPush failed - key={}, error={}", key, e.getMessage(), e);
+            throw new RuntimeException("Cache write failed: " + key, e);
+        }
+        if (count == null) {
+            log.error("Cache lPush failed - key={} returned null", key);
+            throw new RuntimeException("Cache write failed: " + key);
+        }
+    }
+
+    @Override
     public Long lPush(String key, Object value, long time) {
         Long count = redisTemplate.opsForList().rightPush(key, value);
         expire(key, time);
         return count;
+    }
+
+    @Override
+    public void lPushSafe(String key, Object value, long time) {
+        Long count;
+        try {
+            count = redisTemplate.opsForList().rightPush(key, value);
+            expire(key, time);
+        } catch (Exception e) {
+            log.error("Cache lPush failed - key={}, error={}", key, e.getMessage(), e);
+            throw new RuntimeException("Cache write failed: " + key, e);
+        }
+        if (count == null) {
+            log.error("Cache lPush failed - key={} returned null", key);
+            throw new RuntimeException("Cache write failed: " + key);
+        }
     }
 
     @Override
@@ -184,10 +322,41 @@ public class RedisCacheServiceImpl implements CacheService {
     }
 
     @Override
+    public void lPushAllSafe(String key, Object... values) {
+        Long count;
+        try {
+            count = redisTemplate.opsForList().rightPushAll(key, values);
+        } catch (Exception e) {
+            log.error("Cache lPushAll failed - key={}, error={}", key, e.getMessage(), e);
+            throw new RuntimeException("Cache write failed: " + key, e);
+        }
+        if (count == null) {
+            log.error("Cache lPushAll failed - key={} returned null", key);
+            throw new RuntimeException("Cache write failed: " + key);
+        }
+    }
+
+    @Override
     public Long lPushAll(String key, long time, Object... values) {
         Long count = redisTemplate.opsForList().rightPushAll(key, values);
         expire(key, time);
         return count;
+    }
+
+    @Override
+    public void lPushAllSafe(String key, long time, Object... values) {
+        Long count;
+        try {
+            count = redisTemplate.opsForList().rightPushAll(key, values);
+            expire(key, time);
+        } catch (Exception e) {
+            log.error("Cache lPushAll failed - key={}, error={}", key, e.getMessage(), e);
+            throw new RuntimeException("Cache write failed: " + key, e);
+        }
+        if (count == null) {
+            log.error("Cache lPushAll failed - key={} returned null", key);
+            throw new RuntimeException("Cache write failed: " + key);
+        }
     }
 
     @Override
