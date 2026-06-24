@@ -1,0 +1,70 @@
+name: Common Lib CI
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+    paths-ignore:
+      - '**.md'
+
+jobs:
+  build-and-dispatch:
+    runs-on: self-hosted
+
+    steps:
+      # Step 1: 生成 GitHub App token，需要访问 common-lib、root、以及下游服务仓库
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: flyingjack-cloud
+          repositories: common-lib,flyingjack-cloud,auth-service,third-party-service
+
+      # Step 2: checkout 根仓库获取 parent POM 和 mvnw
+      - name: Checkout flyingjack-cloud root
+        uses: actions/checkout@v4
+        with:
+          repository: flyingjack-cloud/flyingjack-cloud
+          token: ${{ steps.app-token.outputs.token }}
+          submodules: false
+
+      # Step 3: checkout common-lib 本次提交
+      - name: Checkout common-lib
+        uses: actions/checkout@v4
+        with:
+          path: common-lib
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Make mvnw executable
+        run: chmod +x mvnw
+
+      # Step 4: 构建 common-lib（无测试直接 install，有测试时改为 verify）
+      - name: Build common-lib
+        run: ./mvnw install -f common-lib/pom.xml -DskipTests -Dspring-boot.repackage.skip=true -q
+
+      # Step 5: 通知下游服务重新构建，携带当前分支和 common-lib SHA
+      # 下游服务 CI 收到事件后会以 cl{sha} 作为 image tag 后缀，确保 gitops yaml 有 diff
+      - name: Dispatch to auth-service
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          curl -s -f \
+            -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/flyingjack-cloud/auth-service/dispatches \
+            -d "{\"event_type\":\"common-lib-updated\",\"client_payload\":{\"ref\":\"${{ github.ref_name }}\",\"common_lib_sha\":\"${GITHUB_SHA::7}\"}}"
+
+      - name: Dispatch to third-party-service
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          curl -s -f \
+            -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/flyingjack-cloud/third-party-service/dispatches \
+            -d "{\"event_type\":\"common-lib-updated\",\"client_payload\":{\"ref\":\"${{ github.ref_name }}\",\"common_lib_sha\":\"${GITHUB_SHA::7}\"}}"
