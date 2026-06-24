@@ -56,9 +56,14 @@ public class HttpTools {
         }
     }
 
-    // 获取请求ip, 注意如果使用Feign或者Gateway时一定要转发X-Forwarded-For头，不然获取不到nginx转发的真实请求头
+    // 获取请求ip。
+    // X-Envoy-External-Address 由 Istio IngressGateway 写入真实客户端 IP，不会被 sidecar 修改，优先读取。
+    // 使用 Feign 调用时需在拦截器中将 X-Forwarded-For 透传，否则无法拿到真实 IP。
     public static String getClientIp(HttpServletRequest request) {
-        String ipAddress = request.getHeader("X-Forwarded-For");
+        String ipAddress = request.getHeader("X-Envoy-External-Address");
+        if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
+            ipAddress = request.getHeader("X-Forwarded-For");
+        }
         if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
             ipAddress = request.getHeader("Proxy-Client-IP");
         }
@@ -69,7 +74,7 @@ public class HttpTools {
             ipAddress = request.getRemoteAddr();
         }
         if (ipAddress != null && ipAddress.contains(",")) {
-            ipAddress = ipAddress.split(",")[0];
+            ipAddress = ipAddress.split(",")[0].trim();
         }
         return ipAddress;
     }
